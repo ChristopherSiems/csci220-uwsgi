@@ -360,6 +360,327 @@ def showAllStudents(conn):
   return body, True
 
 
+"""
+COURSES FUNCTIONS
+"""
+
+def showAddCourseForm():
+  return """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Add A Course</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Number (e.g. CSCI 220)</td>
+            <td><INPUT TYPE="TEXT" NAME="number" VALUE=""></td>
+        </tr>
+        <tr>
+            <td>Title</td>
+            <td><INPUT TYPE="TEXT" NAME="title" VALUE=""></td>
+        </tr>
+        <tr>
+            <td>Room (e.g. MACD 117, optional)</td>
+            <td><INPUT TYPE="TEXT" NAME="room" VALUE=""></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><INPUT TYPE="SUBMIT" NAME="addCourse" VALUE="Add!"></td>
+        </tr>
+    </table>
+    </FORM>
+    """
+
+
+def addCourse(conn, number, title, room):
+  """
+  Inserts a new course. Returns (body, succeeded).
+  """
+  number = number.strip().upper()
+  title = title.strip()
+  room = room.strip().upper() or None  # blank means "no room"
+
+  if not number or not title:
+    return "<p>Error: course number and title cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute(
+      "INSERT INTO course (number, title, room) VALUES (%s,%s,%s)",
+      (number, title, room),
+    )
+    conn.commit()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Add Course Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  body = f"""
+    <p>Add Course Succeeded.</p>
+    <table border=1>
+        <tr>
+            <td>Number</td>
+            <td>{escape(number)}</td>
+        </tr>
+        <tr>
+            <td>Title</td>
+            <td>{escape(title)}</td>
+        </tr>
+        <tr>
+            <td>Room</td>
+            <td>{escape(room or "None")}</td>
+        </tr>
+    </table>
+    <p><a href="./university.py">Return to main page.</a></p>
+    """
+  return body, True
+
+
+def showUpdateCourseNumberForm():
+  return """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Update A Course</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Course Number</td>
+            <td><INPUT TYPE="TEXT" NAME="number" VALUE=""></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><INPUT TYPE="SUBMIT" NAME="selectCourse" VALUE="Find!"></td>
+        </tr>
+    </table>
+    </FORM>
+    """
+
+
+def getUpdateCourseForm(conn, numberText):
+  """
+  Looks up the course and returns (body, succeeded). On success the body
+  is a form pre-filled with the current title and room.
+  """
+  number = numberText.strip().upper()
+  if not number:
+    return "<p>Error: course number cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("SELECT number, title, room FROM course WHERE number=%s", (number,))
+    data = cursor.fetchone()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Lookup Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if data is None:
+    return f"<p>Error: no course found with number {escape(number)}.</p>", False
+
+  number, title, room = data
+  body = f"""
+    <a href="./university.py">Return to main page.</a>
+    <h2>Update Course {escape(number)}</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Title</td>
+            <td><INPUT TYPE="TEXT" NAME="title" VALUE="{escape(title or '')}"></td>
+        </tr>
+        <tr>
+            <td>Room</td>
+            <td><INPUT TYPE="TEXT" NAME="room" VALUE="{escape(room or '')}"></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>
+            <INPUT TYPE="HIDDEN" NAME="number" VALUE="{escape(number)}">
+            <INPUT TYPE="SUBMIT" NAME="completeCourseUpdate" VALUE="Update!">
+            </td>
+        </tr>
+    </table>
+    </FORM>
+    """
+  return body, True
+
+
+def updateCourse(conn, numberText, title, room):
+  """
+  Updates a course's title and room. Returns (body, succeeded).
+  The course number is not editable, because enrollments refer to it.
+  """
+  number = numberText.strip().upper()
+  title = title.strip()
+  room = room.strip().upper() or None
+
+  if not title:
+    return "<p>Error: title cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute(
+      "UPDATE course SET title=%s, room=%s WHERE number=%s",
+      (title, room, number),
+    )
+    conn.commit()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Update Course Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if cursor.rowcount == 0:
+    return f"<p>Update Course Failed. No course with number {escape(number)}.</p>", False
+
+  body = f"""
+    <p>Update Course Succeeded.</p>
+    <table border=1>
+        <tr>
+            <td>Number</td>
+            <td>{escape(number)}</td>
+        </tr>
+        <tr>
+            <td>Title</td>
+            <td>{escape(title)}</td>
+        </tr>
+        <tr>
+            <td>Room</td>
+            <td>{escape(room or "None")}</td>
+        </tr>
+    </table>
+    <p><a href="./university.py">Return to main page.</a></p>
+    """
+  return body, True
+
+
+def showDeleteCourseNumberForm():
+  return """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Delete A Course</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Course Number</td>
+            <td><INPUT TYPE="TEXT" NAME="number" VALUE=""></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><INPUT TYPE="SUBMIT" NAME="selectCourseDelete" VALUE="Find!"></td>
+        </tr>
+    </table>
+    </FORM>
+    """
+
+
+def getDeleteCourseConfirm(conn, numberText):
+  """
+  Looks up the course and returns (body, succeeded). On success the body
+  shows the course and asks for confirmation.
+  """
+  number = numberText.strip().upper()
+  if not number:
+    return "<p>Error: course number cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("SELECT number, title, room FROM course WHERE number=%s", (number,))
+    data = cursor.fetchone()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Lookup Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if data is None:
+    return f"<p>Error: no course found with number {escape(number)}.</p>", False
+
+  number, title, room = data
+  body = f"""
+    <a href="./university.py">Return to main page.</a>
+    <h2>Delete Course {escape(number)}</h2>
+    <p>Are you sure you want to delete this course?</p>
+    <table border=1>
+        <tr>
+            <td>Number</td>
+            <td>{escape(number)}</td>
+        </tr>
+        <tr>
+            <td>Title</td>
+            <td>{escape(title or "")}</td>
+        </tr>
+        <tr>
+            <td>Room</td>
+            <td>{escape(room or "None")}</td>
+        </tr>
+    </table>
+    <FORM METHOD="POST" action="university.py">
+    <INPUT TYPE="HIDDEN" NAME="number" VALUE="{escape(number)}">
+    <p><INPUT TYPE="SUBMIT" NAME="confirmCourseDelete" VALUE="Yes, Delete"></p>
+    </FORM>
+    <p><a href="./university.py">No, cancel.</a></p>
+    """
+  return body, True
+
+
+def deleteCourse(conn, numberText):
+  """
+  Deletes a course. Returns (body, succeeded).
+  """
+  number = numberText.strip().upper()
+  if not number:
+    return "<p>Error: course number cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("DELETE FROM course WHERE number=%s", (number,))
+    conn.commit()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Delete Course Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if cursor.rowcount == 0:
+    return f"<p>Delete Course Failed. No course with number {escape(number)}.</p>", False
+
+  body = f"""
+    <p>Delete Course Succeeded. Course {escape(number)} was deleted.</p>
+    <p><a href="./university.py">Return to main page.</a></p>
+    """
+  return body, True
+
+
+def showAllCourses(conn):
+  """
+  Returns (body, succeeded). On success the body is a table of all courses.
+  """
+  cursor = conn.cursor()
+  try:
+    cursor.execute("SELECT number, title, COALESCE(room, 'None') FROM course ORDER BY number")
+    data = cursor.fetchall()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Display Courses Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  body = """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Course List</h2>
+    <p>
+    <table border=1>
+      <tr>
+        <td><font size=+1><b>number</b></font></td>
+        <td><font size=+1><b>title</b></font></td>
+        <td><font size=+1><b>room</b></font></td>
+      </tr>
+    """
+
+  # each iteration of this loop creates one row of output:
+  for number, title, room in data:
+    body += f"<tr><td>{escape(number)}</td><td>{escape(title or '')}</td><td>{escape(room)}</td></tr>\n"
+
+  body += f"</table><p>Found {len(data)} courses.</p>"
+  return body, True
+
 """ 
 ENROLLMENTS FUNCTIONS
 """
@@ -386,7 +707,6 @@ def showAddEnrollmentForm():
     </table>
     </FORM>
     """
-    
     
 def addEnrollment(conn, student, course):
   """
@@ -664,6 +984,64 @@ def application(env, start_response):
   elif "display" in post and post.get("entity", [""])[0] == "Students":
     b, ok = showAllStudents(conn)
     body += b
+
+  ## COURSE ROUTING
+  # Courses > Add: show the form
+  elif "add" in post and post.get("entity", [""])[0] == "Courses":
+    body += showAddCourseForm()
+  # Courses > Add: process the submitted form
+  elif "addCourse" in post:
+    b, ok = addCourse(
+      conn,
+      post.get("number", [""])[0],
+      post.get("title", [""])[0],
+      post.get("room", [""])[0],
+    )
+    body += b
+    if not ok:
+      body += showAddCourseForm()
+  # Courses > Update: ask for the course number
+  elif "update" in post and post.get("entity", [""])[0] == "Courses":
+    body += showUpdateCourseNumberForm()
+  # Courses > Update: look up the course, show the form with current values
+  elif "selectCourse" in post:
+    b, ok = getUpdateCourseForm(conn, post.get("number", [""])[0])
+    body += b
+    if not ok:
+      body += showUpdateCourseNumberForm()
+  # Courses > Update: process the new values
+  elif "completeCourseUpdate" in post:
+    numberText = post.get("number", [""])[0]
+    b, ok = updateCourse(
+      conn,
+      numberText,
+      post.get("title", [""])[0],
+      post.get("room", [""])[0],
+    )
+    body += b
+    if not ok:
+      form, found = getUpdateCourseForm(conn, numberText)
+      body += form
+  # Courses > Delete: ask for the course number
+  elif "delete" in post and post.get("entity", [""])[0] == "Courses":
+    body += showDeleteCourseNumberForm()
+  # Courses > Delete: look up the course, show it and ask to confirm
+  elif "selectCourseDelete" in post:
+    b, ok = getDeleteCourseConfirm(conn, post.get("number", [""])[0])
+    body += b
+    if not ok:
+      body += showDeleteCourseNumberForm()
+  # Courses > Delete: confirmed, delete the record
+  elif "confirmCourseDelete" in post:
+    b, ok = deleteCourse(conn, post.get("number", [""])[0])
+    body += b
+    if not ok:
+      body += showDeleteCourseNumberForm()
+  # Courses > Display: show all courses
+  elif "display" in post and post.get("entity", [""])[0] == "Courses":
+    b, ok = showAllCourses(conn)
+    body += b
+  
   ##ENROLLED ROUTING
   # Enrollments > Add: show the form
   elif "add" in post and post.get("entity", [""])[0] == "Enrollments":
