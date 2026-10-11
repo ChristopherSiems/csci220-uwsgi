@@ -3,7 +3,7 @@
  * All teammates' names                                               *
  **********************************************************************/
 
-Christopher Siems
+Christopher Siems, Jason Shackley
 
 /**********************************************************************
  * Approximate number of hours to complete this assignment            *
@@ -13,7 +13,7 @@ Number of hours for Christopher Siems: 4
 
 Number of hours for Raymond Zheng: 4
 
-Number of hours for 3rd TEAMMATE's NAME:
+Number of hours for Jason Shackley: 5
 
 Number of hours for 4th TEAMMATE's NAME:
 
