@@ -908,6 +908,332 @@ def showAllEnrollments(conn):
 
   body += f"</table><p>Found {len(data)} enrollments.</p>"
   return body, True
+
+
+"""
+ROOM FUNCTIONS
+"""
+
+def parseCapacity(capacityText):
+  """
+  Returns (capacity, error). error is None when the text is a valid capacity.
+  """
+  try:
+    capacity = int(capacityText.strip())
+  except ValueError:
+    return None, "<p>Error: capacity must be a whole number.</p>"
+  if capacity < 0:
+    return None, "<p>Error: capacity cannot be negative.</p>"
+  return capacity, None
+
+
+def showAddRoomForm():
+  return """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Add A Room</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Room Number</td>
+            <td><INPUT TYPE="TEXT" NAME="roomNumber" VALUE=""></td>
+        </tr>
+        <tr>
+            <td>Capacity</td>
+            <td><INPUT TYPE="TEXT" NAME="capacity" VALUE=""></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><INPUT TYPE="SUBMIT" NAME="addRoom" VALUE="Add!"></td>
+        </tr>
+    </table>
+    </FORM>
+    """
+
+
+def addRoom(conn, number, capacityText):
+  """
+  Inserts a new room. Returns (body, succeeded).
+  """
+  number = number.strip().upper()
+  if not number:
+    return "<p>Error: room number cannot be empty.</p>", False
+
+  capacity, error = parseCapacity(capacityText)
+  if error:
+    return error, False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("INSERT INTO room (number, capacity) VALUES (%s,%s)", (number, capacity))
+    conn.commit()
+  except psycopg.errors.UniqueViolation:
+    conn.rollback()
+    return f"<p>Add Room Failed. Room {escape(number)} already exists.</p>", False
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Add Room Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  body = f"""
+    <p>Add Room Succeeded.</p>
+    <table border=1>
+        <tr>
+            <td>Room Number</td>
+            <td>{escape(number)}</td>
+        </tr>
+        <tr>
+            <td>Capacity</td>
+            <td>{capacity}</td>
+        </tr>
+    </table>
+    <p><a href="./university.py">Return to main page.</a></p>
+    """
+  return body, True
+
+
+def showUpdateRoomNumberForm():
+  return """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Update A Room</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Room Number</td>
+            <td><INPUT TYPE="TEXT" NAME="roomNumber" VALUE=""></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><INPUT TYPE="SUBMIT" NAME="selectRoom" VALUE="Find!"></td>
+        </tr>
+    </table>
+    </FORM>
+    """
+
+
+def getUpdateRoomForm(conn, number):
+  """
+  Looks up the room and returns (body, succeeded). On success the body
+  is a form pre-filled with the current capacity.
+  """
+  number = number.strip().upper()
+  if not number:
+    return "<p>Error: room number cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("SELECT number, capacity FROM room WHERE number=%s", (number,))
+    data = cursor.fetchone()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Lookup Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if data is None:
+    return f"<p>Error: no room found with number {escape(number)}.</p>", False
+
+  number, capacity = data
+  if capacity is None:
+    capacity = ""
+  body = f"""
+    <a href="./university.py">Return to main page.</a>
+    <h2>Update Room {escape(number)}</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Capacity</td>
+            <td><INPUT TYPE="TEXT" NAME="capacity" VALUE="{capacity}"></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>
+            <INPUT TYPE="HIDDEN" NAME="roomNumber" VALUE="{escape(number)}">
+            <INPUT TYPE="SUBMIT" NAME="completeRoomUpdate" VALUE="Update!">
+            </td>
+        </tr>
+    </table>
+    </FORM>
+    """
+  return body, True
+
+
+def updateRoom(conn, number, capacityText):
+  """
+  Updates a room's capacity. Returns (body, succeeded).
+  """
+  number = number.strip().upper()
+  if not number:
+    return "<p>Error: room number cannot be empty.</p>", False
+
+  capacity, error = parseCapacity(capacityText)
+  if error:
+    return error, False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("UPDATE room SET capacity=%s WHERE number=%s", (capacity, number))
+    conn.commit()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Update Room Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if cursor.rowcount == 0:
+    return f"<p>Update Room Failed. No room with number {escape(number)}.</p>", False
+
+  body = f"""
+    <p>Update Room Succeeded.</p>
+    <table border=1>
+        <tr>
+            <td>Room Number</td>
+            <td>{escape(number)}</td>
+        </tr>
+        <tr>
+            <td>Capacity</td>
+            <td>{capacity}</td>
+        </tr>
+    </table>
+    <p><a href="./university.py">Return to main page.</a></p>
+    """
+  return body, True
+
+
+def showDeleteRoomNumberForm():
+  return """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Delete A Room</h2>
+    <p>
+    <FORM METHOD="POST" action="university.py">
+    <table>
+        <tr>
+            <td>Room Number</td>
+            <td><INPUT TYPE="TEXT" NAME="roomNumber" VALUE=""></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><INPUT TYPE="SUBMIT" NAME="selectRoomDelete" VALUE="Find!"></td>
+        </tr>
+    </table>
+    </FORM>
+    """
+
+
+def getDeleteRoomConfirm(conn, number):
+  """
+  Looks up the room and returns (body, succeeded). On success the body
+  shows the room and asks for confirmation.
+  """
+  number = number.strip().upper()
+  if not number:
+    return "<p>Error: room number cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("SELECT number, capacity FROM room WHERE number=%s", (number,))
+    data = cursor.fetchone()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Lookup Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if data is None:
+    return f"<p>Error: no room found with number {escape(number)}.</p>", False
+
+  number, capacity = data
+  if capacity is None:
+    capacity = ""
+  body = f"""
+    <a href="./university.py">Return to main page.</a>
+    <h2>Delete Room {escape(number)}</h2>
+    <p>Are you sure you want to delete this room?</p>
+    <table border=1>
+        <tr>
+            <td>Room Number</td>
+            <td>{escape(number)}</td>
+        </tr>
+        <tr>
+            <td>Capacity</td>
+            <td>{capacity}</td>
+        </tr>
+    </table>
+    <FORM METHOD="POST" action="university.py">
+    <INPUT TYPE="HIDDEN" NAME="roomNumber" VALUE="{escape(number)}">
+    <p><INPUT TYPE="SUBMIT" NAME="confirmRoomDelete" VALUE="Yes, Delete"></p>
+    </FORM>
+    <p><a href="./university.py">No, cancel.</a></p>
+    """
+  return body, True
+
+
+def deleteRoom(conn, number):
+  """
+  Deletes a room. Returns (body, succeeded).
+  """
+  number = number.strip().upper()
+  if not number:
+    return "<p>Error: room number cannot be empty.</p>", False
+
+  cursor = conn.cursor()
+  try:
+    cursor.execute("DELETE FROM room WHERE number=%s", (number,))
+    conn.commit()
+  except psycopg.errors.ForeignKeyViolation:
+    # a course still meets in this room, so the database refuses the delete
+    conn.rollback()
+    return (
+      f"<p>Delete Room Failed. Room {escape(number)} is still assigned to a course. "
+      "Move or delete those courses first.</p>"
+    ), False
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Delete Room Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  if cursor.rowcount == 0:
+    return f"<p>Delete Room Failed. No room with number {escape(number)}.</p>", False
+
+  body = f"""
+    <p>Delete Room Succeeded. Room {escape(number)} was deleted.</p>
+    <p><a href="./university.py">Return to main page.</a></p>
+    """
+  return body, True
+
+
+def showAllRooms(conn):
+  """
+  Returns (body, succeeded). On success the body is a table of all rooms.
+  """
+  cursor = conn.cursor()
+  try:
+    cursor.execute("SELECT number, capacity FROM room ORDER BY number")
+    data = cursor.fetchall()
+  except psycopg.Error as e:
+    conn.rollback()
+    print(f"Database error: {e}")
+    return f"<p>Display Rooms Failed.</p><p>Error: {escape(str(e))}</p>", False
+
+  body = """
+    <a href="./university.py">Return to main page.</a>
+    <h2>Room List</h2>
+    <p>
+    <table border=1>
+      <tr>
+        <td><font size=+1><b>number</b></font></td>
+        <td><font size=+1><b>capacity</b></font></td>
+      </tr>
+    """
+
+  # each iteration of this loop creates one row of output:
+  for number, capacity in data:
+    if capacity is None:
+      capacity = ""
+    body += f"<tr><td>{escape(number)}</td><td>{capacity}</td></tr>\n"
+
+  body += f"</table><p>Found {len(data)} rooms.</p>"
+  return body, True
+
   
 def application(env, start_response):
   qs, post = get_qs_post(env)
@@ -1080,6 +1406,55 @@ def application(env, start_response):
   elif "display" in post and post.get("entity", [""])[0] == "Enrollments":
     b, ok = showAllEnrollments(conn)
     body += b
+
+  ## ROOM ROUTING
+  # Rooms > Add: show the form
+  elif "add" in post and post.get("entity", [""])[0] == "Rooms":
+    body += showAddRoomForm()
+  # Rooms > Add: process the submitted form
+  elif "addRoom" in post:
+    b, ok = addRoom(conn, post.get("roomNumber", [""])[0], post.get("capacity", [""])[0])
+    body += b
+    if not ok:
+      # show the form again so the user can retry
+      body += showAddRoomForm()
+  # Rooms > Update: ask for the room number
+  elif "update" in post and post.get("entity", [""])[0] == "Rooms":
+    body += showUpdateRoomNumberForm()
+  # Rooms > Update: look up the room, show the form with the current capacity
+  elif "selectRoom" in post:
+    b, ok = getUpdateRoomForm(conn, post.get("roomNumber", [""])[0])
+    body += b
+    if not ok:
+      body += showUpdateRoomNumberForm()
+  # Rooms > Update: process the new capacity
+  elif "completeRoomUpdate" in post:
+    roomNumber = post.get("roomNumber", [""])[0]
+    b, ok = updateRoom(conn, roomNumber, post.get("capacity", [""])[0])
+    body += b
+    if not ok:
+      # show the edit form again so the user can retry
+      form, found = getUpdateRoomForm(conn, roomNumber)
+      body += form
+  # Rooms > Delete: ask for the room number
+  elif "delete" in post and post.get("entity", [""])[0] == "Rooms":
+    body += showDeleteRoomNumberForm()
+  # Rooms > Delete: look up the room, show it and ask to confirm
+  elif "selectRoomDelete" in post:
+    b, ok = getDeleteRoomConfirm(conn, post.get("roomNumber", [""])[0])
+    body += b
+    if not ok:
+      body += showDeleteRoomNumberForm()
+  # Rooms > Delete: confirmed, delete the record
+  elif "confirmRoomDelete" in post:
+    b, ok = deleteRoom(conn, post.get("roomNumber", [""])[0])
+    body += b
+    if not ok:
+      body += showDeleteRoomNumberForm()
+  # Rooms > Display: show all rooms
+  elif "display" in post and post.get("entity", [""])[0] == "Rooms":
+    b, ok = showAllRooms(conn)
+    body += b
   # default case: show the main menu
   else:
     body += showMainMenu()
@@ -1090,5 +1465,4 @@ def application(env, start_response):
   start_response("200 OK", [("Content-Type", "text/html")])
   return [wrapBody(body, title="University").encode("utf-8")]
 
-  
   
