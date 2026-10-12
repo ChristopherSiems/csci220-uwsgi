@@ -859,9 +859,14 @@ def deleteEnrollment(conn, student, course):
   if not student or not course:
     return "<p>Error: Student ID and Course ID cannot be empty.</p>", False
 
+  try:
+    studentId = int(student)
+  except ValueError:
+    return "<p>Error: Student ID must be a whole number.</p>", False
+
   cursor = conn.cursor()
   try:
-    cursor.execute("DELETE FROM enrolled WHERE student=%s AND course=%s", (int(student), course))
+    cursor.execute("DELETE FROM enrolled WHERE student=%s AND course=%s", (studentId, course))
     conn.commit()
   except psycopg.Error as e:
     conn.rollback()
